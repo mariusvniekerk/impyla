@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
+import glob
 import ez_setup
 ez_setup.use_setuptools()
 
@@ -21,7 +22,6 @@ from setuptools import setup, find_packages
 def readme():
     with open('README.md', 'r') as ip:
         return ip.read()
-
 
 setup(
     name='impyla',
@@ -34,10 +34,15 @@ setup(
     packages=find_packages(),
     package_data={
         'impala.udf': ['precompiled/impyla.bc'],
-        'impala.tests': ['data/iris.data']
+        'impala.tests': ['data/iris.data'],
+        'impala.thrift': [os.path.abspath(x) for x in glob.glob(os.path.join('.', 'thrift', '*.thrift'))]
     },
     scripts=['bin/register-impala-udfs.py'],
-    install_requires=['six', 'thrift'],
+    install_requires=['six'],
+    extras_require={
+        "thirft": ["thrift"],
+        "thriftpy": ["thriftpy"]
+    },
     keywords=('cloudera impala python hadoop sql hdfs mpp madlib spark pydata '
               'pandas distributed db api pep 249'),
     license='Apache License, Version 2.0',

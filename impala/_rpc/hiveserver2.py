@@ -28,22 +28,66 @@ import operator
 import re
 from decimal import Decimal
 
-from thrift.transport.TSocket import TSocket
-from thrift.transport.TTransport import TBufferedTransport, TTransportException
-from thrift.protocol.TBinaryProtocol import (
-    TBinaryProtocolAccelerated as TBinaryProtocol)
-
 from impala.error import HiveServer2Error
-from impala._thrift_gen.TCLIService.ttypes import (
-    TOpenSessionReq, TFetchResultsReq, TCloseSessionReq, TExecuteStatementReq,
-    TGetInfoReq, TGetInfoType, TTypeId, TFetchOrientation,
-    TGetResultSetMetadataReq, TStatusCode, TGetColumnsReq, TGetSchemasReq,
-    TGetTablesReq, TGetFunctionsReq, TGetOperationStatusReq, TOperationState,
-    TCancelOperationReq, TCloseOperationReq, TGetLogReq, TProtocolVersion)
-from impala._thrift_gen.ImpalaService.ImpalaHiveServer2Service import (
-    TGetRuntimeProfileReq, TGetExecSummaryReq)
-from impala._thrift_gen.ImpalaService import ImpalaHiveServer2Service
-from impala._thrift_gen.ExecStats.ttypes import TExecStats
+
+try:
+    import thriftpy
+    use_thriftpy = True
+    _ImpalaService = thriftpy.load(
+        './impyla_thrift/ImpalaService.thrift' ,
+        'impala._thrift_gen.ImpalaService_thrift',
+        '../thrift')
+    from thriftpy.transport import (TSocket, TBufferedTransport, TTransportException)
+    from thriftpy.protocol import TBinaryProtocol
+    from thriftpy.rpc import TClient
+
+    # CLI Service Types
+    TOpenSessionReq = _ImpalaService.TCLIService.TOpenSessionReq
+    TFetchResultsReq = _ImpalaService.TCLIService.TFetchResultsReq
+    TCloseSessionReq = _ImpalaService.TCLIService.TCloseSessionReq
+    TExecuteStatementReq = _ImpalaService.TCLIService.TExecuteStatementReq
+    TGetInfoReq = _ImpalaService.TCLIService.TGetInfoReq
+    TGetInfoType = _ImpalaService.TCLIService.TGetInfoType
+    TTypeId = _ImpalaService.TCLIService.TTypeId
+    TFetchOrientation = _ImpalaService.TCLIService.TFetchOrientation
+    TGetResultSetMetadataReq = _ImpalaService.TCLIService.TGetResultSetMetadataReq
+    TStatusCode = _ImpalaService.TCLIService.TStatusCode
+    TGetColumnsReq = _ImpalaService.TCLIService.TGetColumnsReq
+    TGetSchemasReq = _ImpalaService.TCLIService.TGetSchemasReq
+    TGetTablesReq = _ImpalaService.TCLIService.TGetTablesReq
+    TGetFunctionsReq = _ImpalaService.TCLIService.TGetFunctionsReq
+    TGetOperationStatusReq = _ImpalaService.TCLIService.TGetOperationStatusReq
+    TOperationState = _ImpalaService.TCLIService.TOperationState
+    TCancelOperationReq = _ImpalaService.TCLIService.TCancelOperationReq
+    TCloseOperationReq = _ImpalaService.TCLIService.TCloseOperationReq
+    TGetLogReq = _ImpalaService.TCLIService.TGetLogReq
+    TProtocolVersion = _ImpalaService.TCLIService.TProtocolVersion
+
+    # Impala SDervice Types
+    ImpalaHiveServer2Service = _ImpalaService.ImpalaHiveServer2Service
+    TGetRuntimeProfileReq = _ImpalaService.TGetRuntimeProfileReq
+    TGetExecSummaryReq = _ImpalaService.TGetExecSummaryReq
+
+    # Impala SDervice Types
+    TExecStats = _ImpalaService.ExecStats.TExecStats
+
+except ImportError:
+    use_thriftpy = False
+    from thrift.transport.TSocket import TSocket
+    from thrift.transport.TTransport import TBufferedTransport, TTransportException
+    from thrift.protocol.TBinaryProtocol import (
+        TBinaryProtocolAccelerated as TBinaryProtocol)
+
+    from impala._thrift_gen.TCLIService.ttypes import (
+        TOpenSessionReq, TFetchResultsReq, TCloseSessionReq, TExecuteStatementReq,
+        TGetInfoReq, TGetInfoType, TTypeId, TFetchOrientation,
+        TGetResultSetMetadataReq, TStatusCode, TGetColumnsReq, TGetSchemasReq,
+        TGetTablesReq, TGetFunctionsReq, TGetOperationStatusReq, TOperationState,
+        TCancelOperationReq, TCloseOperationReq, TGetLogReq, TProtocolVersion)
+    from impala._thrift_gen.ImpalaService.ImpalaHiveServer2Service import (
+        TGetRutnimeProfileReq, TGetExecSummaryReq)
+    from impala._thrift_gen.ImpalaService import ImpalaHiveServer2Service
+    from impala._thrift_gen.ExecStats.ttypes import TExecStats
 
 # mapping between the schema types (based on
 # com.cloudera.impala.catalog.PrimitiveType) and TColumnValue (in returned
@@ -113,32 +157,60 @@ def retry(func):
     # Retries RPCs after closing/reopening transport
     # `service` must be the first arg in args or must be a kwarg
 
-    def wrapper(*args, **kwargs):
-        # get the thrift transport
-        if 'service' in kwargs:
-            transport = kwargs['service']._iprot.trans
-        elif (len(args) > 0 and
-                  isinstance(args[0], ImpalaHiveServer2Service.Client)):
-            transport = args[0]._iprot.trans
-        else:
-            raise HiveServer2Error(
-                "RPC function does not have expected 'service' arg")
+    if use_thriftpy:
+        def wrapper(*args, **kwargs):
+            # get the thrift transport
+            if 'service' in kwargs:
+                transport = kwargs['service']._iprot.trans
+            elif (len(args) > 0 and isinstance(args[0], TClient)):
+                transport = args[0]._iprot.trans
+            else:
+                raise HiveServer2Error(
+                    "RPC function does not have expected 'service' arg")
 
-        tries_left = 3
-        while tries_left > 0:
-            try:
-                if not transport.isOpen():
-                    transport.open()
-                return func(*args, **kwargs)
-            except socket.error:
-                pass
-            except TTransportException:
-                pass
-            except Exception:
-                raise
-            transport.close()
-            tries_left -= 1
-        raise
+            tries_left = 3
+            while tries_left > 0:
+                try:
+                    if not transport.isOpen():
+                        transport.open()
+                    return func(*args, **kwargs)
+                except socket.error:
+                    pass
+                except TTransportException:
+                    pass
+                except Exception:
+                    raise
+                transport.close()
+                tries_left -= 1
+            raise
+    else:
+        def wrapper(*args, **kwargs):
+            # get the thrift transport
+            if 'service' in kwargs:
+                transport = kwargs['service']._iprot.trans
+            elif (len(args) > 0 and
+                      isinstance(args[0], ImpalaHiveServer2Service.Client)):
+                transport = args[0]._iprot.trans
+            else:
+                raise HiveServer2Error(
+                    "RPC function does not have expected 'service' arg")
+
+            tries_left = 3
+            while tries_left > 0:
+                try:
+                    if not transport.isOpen():
+                        transport.open()
+                    return func(*args, **kwargs)
+                except socket.error:
+                    pass
+                except TTransportException:
+                    pass
+                except Exception:
+                    raise
+                transport.close()
+                tries_left -= 1
+            raise
+
 
     return wrapper
 
