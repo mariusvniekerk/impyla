@@ -14,15 +14,23 @@
 
 """Impala exception classes.  Also implements PEP 249."""
 
-import exceptions
+import six
 
+if six.PY2:
+    import exceptions
 
-class Error(exceptions.StandardError):
-    pass
+    class Error(exceptions.StandardError):
+        pass
 
+    class Warning(exceptions.StandardError):
+        pass
+else:
+    # In python 3 land we don't have exceptions.StandardError
+    class Error(Exception):
+        pass
 
-class Warning(exceptions.StandardError):
-    pass
+    class Warning(Exception):
+        pass
 
 
 # DB API (PEP 249) exceptions

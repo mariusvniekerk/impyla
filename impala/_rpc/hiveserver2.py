@@ -32,11 +32,13 @@ from impala.error import HiveServer2Error
 
 try:
     import thriftpy
-    use_thriftpy = True
+    import impala._thrift_gen
+    import os
+    _thrift_root = os.path.dirname(impala._thrift_gen.__file__)
     _ImpalaService = thriftpy.load(
-        './impyla_thrift/ImpalaService.thrift' ,
+        os.path.join(_thrift_root, 'ImpalaService.thrift'),
         'impala._thrift_gen.ImpalaService_thrift',
-        '../thrift')
+        _thrift_root)
     from thriftpy.transport import (TSocket, TBufferedTransport, TTransportException)
     from thriftpy.protocol import TBinaryProtocol
     from thriftpy.rpc import TClient
